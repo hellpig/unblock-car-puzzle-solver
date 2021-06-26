@@ -12,6 +12,11 @@
     ./animate.py
   Close the animation figure to enter interactive mode!
 
+  If on Windows, setup Mingw-w64 or Cygwin, then do...
+    g++ -O3 solve.cpp
+    a.exe
+    python3 animate.py
+
   (c) 2021 Bradley Knockel
 */
 

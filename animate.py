@@ -70,32 +70,20 @@ def setupFigure():
 
 
 
-def update(i):  # i is the car
+def update(car):
 
     ann.set_text('move ' + str(j))
 
-    if carDataInitial[i][3]:   # vertical
-        row = carDataInitial[i][1] + carDataInitial[i][4] + s[i] + 1
-        col = carDataInitial[i][2]
+    if carDataInitial[car][3]:   # vertical
+        row = carDataInitial[car][1] + carDataInitial[car][4] + s[car] + 1
+        col = carDataInitial[car][2]
     else:
-        row = carDataInitial[i][1] + 2
-        col = carDataInitial[i][2] + s[i]
-    rects[i].set_xy( ( (col+0.1)/siz[1], 1-(row-0.1)/(siz[0]+2) ) )
+        row = carDataInitial[car][1] + 2
+        col = carDataInitial[car][2] + s[car]
+    rects[car].set_xy( ( (col+0.1)/siz[1], 1-(row-0.1)/(siz[0]+2) ) )
 
     plt.draw()
 
-
-
-def animateFunc(frame):
-    global j
-    i = frame - 1   # start with a brief pause to display the original puzzle
-    if i < 0:
-      return
-    j += 1
-    step = [solution[3*i], solution[3*i + 1], solution[3*i + 2]]   # [car, direction, count]
-    s[step[0]] += ( ((step[1]-1) % 2)*2 - 1)*step[2]
-    update(step[0])
-    return
 
 
 
@@ -107,6 +95,17 @@ s = [0]*numCars     # this is the same as wrapped.s[] in solve.cpp except *down*
 [fig, ax, ann, rects] = setupFigure()
 
 ax.annotate('Solved!', (0.2, 0.2/(siz[0]+2)), xycoords = 'figure fraction')
+
+def animateFunc(frame):
+    global j
+    i = frame - 1   # start with a brief pause to display the original puzzle
+    if i < 0:
+      return
+    j += 1
+    step = [solution[3*i], solution[3*i + 1], solution[3*i + 2]]   # [car, direction, count]
+    s[step[0]] += ( ((step[1]-1) % 2)*2 - 1)*step[2]
+    update(step[0])
+    return
 
 _ = animation.FuncAnimation(fig, animateFunc, frames = moves+1, interval=delay, repeat=False)
 plt.show()
@@ -136,7 +135,7 @@ def buttonFuncRight(var):
         s[step[0]] += ( ((step[1]-1) % 2)*2 - 1)*step[2]
         update(step[0])
 
-# put in the buttons
+# make the buttons
 xStart = 0.1
 width = 1.0
 yPadding = 0.3
