@@ -98,18 +98,25 @@
 
 
 
-/* create struct in order to pass arrays by value */
+/* define a struct in order to pass arrays by value to move() */
 struct wrapper{
   int l[length];
   int s[cars];
 };
 
 
-/* make a few more things global */
+
+/* make a few more things global for move() */
+
 int carDataInitial[cars][5];  // 5 columns: {index, row, column, vertical=1 (else 0), length}
 std::vector<int> wallData;    // indices of walls
 std::vector<int> sol;         // current best solution
 const int carsPlus1 = cars + 1;
+
+// A vector where each group of (cars + 1) elements is an old s[] with its corresponding n attached,
+//     where s[] is defined in move().
+// It only ever grows as more unique puzzle configurations are encoumtered.
+std::vector<int> uniqueConfigurations;
 
 
 
@@ -121,16 +128,16 @@ const int carsPlus1 = cars + 1;
 */
 
 #define tryy(do) ({\
-    if (carDataInitial[i][3]) {          /* vertical */    \
+    if (carDataInitial[i][3]) {     /* vertical */   \
         if ( (do || d==1) && carDataInitial[i][1]-wrapped.s[i]-1 >= 0 && wrapped.l[carDataInitial[i][0] - (wrapped.s[i]+1)*size[1]] == -1 )\
-            o = move(wrapped,o,p,n,i,1);  /* move up */    \
+            move(wrapped,p,n,i,1);  /* move up */    \
         if ( (do || d==2) && carDataInitial[i][1]-wrapped.s[i]+carDataInitial[i][4] < size[0] && wrapped.l[carDataInitial[i][0] + (carDataInitial[i][4]-wrapped.s[i])*size[1]] == -1 )\
-            o = move(wrapped,o,p,n,i,2);  /* move down */  \
+            move(wrapped,p,n,i,2);  /* move down */  \
     } else {\
         if ( (do || d==3) && carDataInitial[i][2]+wrapped.s[i]-1 >= 0 && wrapped.l[carDataInitial[i][0] + wrapped.s[i] - 1] == -1 )\
-            o = move(wrapped,o,p,n,i,3);  /* move left */  \
+            move(wrapped,p,n,i,3);  /* move left */  \
         if ( (do || d==4) && carDataInitial[i][2]+wrapped.s[i]+carDataInitial[i][4] < size[1] && wrapped.l[carDataInitial[i][0] + wrapped.s[i] + carDataInitial[i][4]] == -1 )\
-            o = move(wrapped,o,p,n,i,4);  /* move right */ \
+            move(wrapped,p,n,i,4);  /* move right */ \
     }\
 })
 
@@ -139,12 +146,10 @@ const int carsPlus1 = cars + 1;
 
 /*
  move() is the recursive function that solves the puzzle
- returns o
 
  wrapped.l[] is the level array
  wrapped.s[] is position array of all cars relative to variable carDataInitial[] (up or right is positive)
 
- o[] is a vector where each group of (cars + 1) elements is an old s[] with its corresponding n attached
  p[] is a vector where each group of 2 elements is {c, d}; will eventually be used to make sol[]
 
  n is current step
@@ -153,7 +158,7 @@ const int carsPlus1 = cars + 1;
      1=up 2=down 3=left 4=right 0=start
 */
 
-std::vector<int> move(wrapper wrapped, std::vector<int> o, std::vector<int> p, int n, int c, int d) {
+void move(wrapper wrapped, std::vector<int> p, int n, int c, int d) {
 
   // update wrapped
   if (d==1) {
@@ -180,10 +185,10 @@ std::vector<int> move(wrapper wrapped, std::vector<int> o, std::vector<int> p, i
 
     // search for another time the same s[] has occurred
     int ind = 0;
-    for (int j=0; j < o.size()/carsPlus1; j++) {
+    for (int j=0; j < uniqueConfigurations.size()/carsPlus1; j++) {
         int stop = 0;
         for (int k=0; k < cars; k++) {
-           if (wrapped.s[k] != o[j*carsPlus1 + k]) {
+           if (wrapped.s[k] != uniqueConfigurations[j*carsPlus1 + k]) {
               stop = 1;
               break;
            }
@@ -194,27 +199,27 @@ std::vector<int> move(wrapper wrapped, std::vector<int> o, std::vector<int> p, i
     }
 
     if (ind) {
-      int N = o[ind];
+      int N = uniqueConfigurations[ind];
 
       if (n>N)
-          return o;
+          return;
       if (n==N) {
           if (smartCount)
               go = 0;
           else
-              return o;
+              return;
       }
 
-      // replace the entry in o[]
-      o[ind] = n;
+      // replace the entry in uniqueConfigurations[]
+      uniqueConfigurations[ind] = n;
 
     } else {
 
-      // make o[] longer
-      o.reserve(o.size() + carsPlus1);
+      // make uniqueConfigurations[] longer
+      uniqueConfigurations.reserve(uniqueConfigurations.size() + carsPlus1);
       for (int j=0; j<cars; j++)
-          o.push_back(wrapped.s[j]);
-      o.push_back(n);
+          uniqueConfigurations.push_back(wrapped.s[j]);
+      uniqueConfigurations.push_back(n);
     }
 
   }
@@ -234,7 +239,7 @@ std::vector<int> move(wrapper wrapped, std::vector<int> o, std::vector<int> p, i
     if (!searchForOptimal)
         nMax = 0;
     std::cout << "\b\b\b\b\b" << std::setw(5) << n << std::flush;
-    return o;
+    return;
   }
 
   // try to keep moving same car in the same direction
@@ -242,11 +247,11 @@ std::vector<int> move(wrapper wrapped, std::vector<int> o, std::vector<int> p, i
   if (smartCount && c >= 0) {
       tryy(0);
   }
-  if (!go) return o;
+  if (!go) return;
 
   // check if we should give up
   n++;
-  if (n > nMax) return o;
+  if (n > nMax) return;
 
   // try to keep moving same car in the same direction
   if (c >= 0 && !smartCount) {
@@ -260,7 +265,7 @@ std::vector<int> move(wrapper wrapped, std::vector<int> o, std::vector<int> p, i
     }
   }
 
-  return o;
+  return;
 }
 
 
@@ -401,9 +406,8 @@ int main() {
        << std::flush;
   }
 
-  // make some crap for move()
-  std::vector<int> temp(carsPlus1, 0);
-  std::vector<int> temp2;
+  // make some crap for move(): temp[] and wrapped
+  std::vector<int> temp;
   wrapper wrapped;
   for (int i=0; i<length; i++)
     wrapped.l[i] = lStart[i] - 1;  // subtract 1 so that car label matches index of carDataInitial[]
@@ -416,18 +420,17 @@ int main() {
 
   // run and time move()
   std::chrono::high_resolution_clock::time_point timeStart = std::chrono::high_resolution_clock::now();
-  temp = move(wrapped, temp, temp2, 0, -1, 0);
+  move(wrapped, temp, 0, -1, 0);
   std::chrono::high_resolution_clock::time_point timeEnd = std::chrono::high_resolution_clock::now();
 
   // print results contained in sol[]
   std::cout << '\n';
   int solRows = sol.size()/2;
   for (int i=0; i < solRows; i++)
-    std::cout << std::setw(5) << sol[2*i] + 1 << std::setw(3) << sol[2*i + 1] << '\n';   // add 1 so that car labels again match lStart[]
+    std::cout << std::setw(5) << sol[2*i] + 1 << std::setw(3) << sol[2*i + 1] << '\n';   // add 1 when printing so that car labels again match lStart[]
   std::cout << "Elapsed time is " << std::chrono::duration_cast<std::chrono::seconds>(timeEnd - timeStart).count() << " sec" << std::endl;
 
-  // use temp[] lol
-  std::cout << "Number of unique configurations explored: " << temp.size() / carsPlus1 << std::endl;
+  std::cout << "Number of unique configurations explored: " << uniqueConfigurations.size() / carsPlus1 << std::endl;
 
   if (!solRows) {
     std::cout << "No solution found. Perhaps you should make nMax larger." << std::endl;
