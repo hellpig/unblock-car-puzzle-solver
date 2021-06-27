@@ -21,8 +21,8 @@
 */
 
 
-#include <iostream>   // std::cout, std::endl, std::flush
-#include <iomanip>    // std::setw()
+#include <iostream>   // std::cout, std::endl, std::flush, std::fixed
+#include <iomanip>    // std::setw(), std::setprecision
 #include <fstream>    // std::ofstream
 #include <chrono>     // for timing the code
 #include <vector>     // for variable-length (on heap) 1D arrays
@@ -424,11 +424,15 @@ int main() {
   std::chrono::high_resolution_clock::time_point timeEnd = std::chrono::high_resolution_clock::now();
 
   // print results contained in sol[]
+  std::cout << std::fixed << std::setprecision(3);  // floats now always print 3 decimal values; a persistent change, unlike std::setw()
   std::cout << '\n';
   int solRows = sol.size()/2;
   for (int i=0; i < solRows; i++)
-    std::cout << std::setw(5) << sol[2*i] + 1 << std::setw(3) << sol[2*i + 1] << '\n';   // add 1 when printing so that car labels again match lStart[]
-  std::cout << "Elapsed time is " << std::chrono::duration_cast<std::chrono::seconds>(timeEnd - timeStart).count() << " sec" << std::endl;
+    std::cout << std::setw(5) << sol[2*i] + 1 << std::setw(3)    // add 1 when printing so that car labels again match lStart[]
+        << sol[2*i + 1] << '\n';
+  std::cout << "Elapsed time is "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(timeEnd - timeStart).count()/1000.0
+      << " s" << std::endl;
 
   std::cout << "Number of unique configurations explored: " << uniqueConfigurations.size() / carsPlus1 << std::endl;
 
