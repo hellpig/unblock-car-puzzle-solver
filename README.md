@@ -10,5 +10,3 @@ To use, enter level information into solve.cpp, then run solve.cpp to output the
 Then, to optionally help you view the solution, run animate.py for a quick animation and user-controlled mode (the matplotlib module is needed).
 
 solve.cpp performs a brute-force search, yet it is **very fast** for many reasons: (1) uniqueConfigurations\[\] prevents runtime from growing exponentially, (2) I use a low-level compiled langauge such as C++ instead of MATLAB or Python, (3) much data such as sol\[\] and uniqueConfigurations\[\] were made to be global, (4) the user can set the nMax parameter to not consider solutions that are more than nMax moves, (5) etc.
-
-Keywords: unblock me puzzle solver, parked car puzzle solver, unblock car puzzle solver, sliding car puzzle solver, sliding block puzzle solver, car park puzzle solver, optimal solution
