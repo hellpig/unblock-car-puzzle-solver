@@ -14,7 +14,7 @@
 
   If on Windows, setup Mingw-w64 or Cygwin, then do...
     g++ -O3 solve.cpp
-    a.exe
+    .\a.exe
     python3 animate.py
 
   (c) 2021 Bradley Knockel
@@ -115,7 +115,7 @@ const int carsPlus1 = cars + 1;
 
 // A vector where each group of (cars + 1) elements is an old s[] with its corresponding n attached,
 //     where s[] is defined in move().
-// It only ever grows as more unique puzzle configurations are encoumtered.
+// It only ever grows as more unique puzzle configurations are encountered.
 std::vector<int> uniqueConfigurations;
 
 
@@ -428,8 +428,8 @@ int main() {
   std::cout << '\n';
   int solRows = sol.size()/2;
   for (int i=0; i < solRows; i++)
-    std::cout << std::setw(5) << sol[2*i] + 1 << std::setw(3)    // add 1 when printing so that car labels again match lStart[]
-        << sol[2*i + 1] << '\n';
+    std::cout << std::setw(5) << sol[2*i] + 1    // add 1 when printing so that car labels again match lStart[]
+        << std::setw(3) << sol[2*i + 1] << '\n';
   std::cout << "Elapsed time is "
       << std::chrono::duration_cast<std::chrono::milliseconds>(timeEnd - timeStart).count()/1000.0
       << " s" << std::endl;
