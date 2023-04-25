@@ -68,12 +68,12 @@
 
         Note that this array will have 1 subtracted from each value before being fed into move()
     */
-    int lStart[] = {1,  1,  0,  2,  2,  2,
-                    0,  0,  0, 10,  3,  3,
-                    8,  4,  4, 10,  0, 11,
-                    8,  0,  9,  5,  5, 11,
-                    6,  6,  9,  0,  0, 11,
-                    0,  0,  9,  7,  7,  7};
+    int lStart[] = {1,  1,  0,  5,  0,  6,
+                    7,  8,  0,  5,  0,  6,
+                    7,  8,  2,  2,  9, 10,
+                   11,  3,  3, 12,  9, 10,
+                   11,  0, 13, 12,  9,  0,
+                   11,  0, 13,  4,  4,  0};
 
 
 
