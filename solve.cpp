@@ -68,19 +68,26 @@
 
         Note that this array will have 1 subtracted from each value before being fed into move()
     */
+/*
     int lStart[] = {1,  1,  0,  2,  2,  2,
                     0,  0,  0, 10,  3,  3,
                     8,  4,  4, 10,  0, 11,
                     8,  0,  9,  5,  5, 11,
                     6,  6,  9,  0,  0, 11,
-                    0,  0,  9,  7,  7,  7};
-
+                    0,  0,  9,  7,  7,  7};   // win condition is {2, 5, 4}
+*/
+    int lStart[] = {1,  1,  0,  5,  0,  6,
+                    7,  8,  0,  5,  0,  6,
+                    7,  8,  2,  2,  9, 10,
+                   11,  3,  3, 12,  9, 10,
+                   11,  0, 13, 12,  9,  0,
+                   11,  0, 13,  4,  4,  0};   // win condition is {2, 5, 2}
 
 
     /* set according to lStart[] */
     const int size[] = {6, 6};   // {rows, columns}
     #define length 36
-    #define cars 11
+    #define cars 13
 
 
 
@@ -89,7 +96,7 @@
         Keep in mind that first row or first column is 0
         Note that this array will be modified before it is used
     */
-    int winCondition[] = {2, 5, 4};
+    int winCondition[] = {2, 5, 2};
 
 
 /////////////////////////////////////////////////////////////////////////////////////////
