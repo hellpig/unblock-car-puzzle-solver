@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.8
+#!/usr/bin/env python3
 #
 # Animates the output.txt that solve.cpp produced
 #
@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from matplotlib.widgets import Button
 
+from ast import literal_eval  # adds security that eval() doesn't have
+
 
 filename = 'output.txt'
 figScale = 0.7
@@ -16,15 +18,14 @@ delay = 250    # milliseconds for each frame of animation
 
 
 # read in the text file
-f = open(filename, 'rt')
-siz = eval(f.readline())
-numCars = eval(f.readline())
-carDataInitial = []
-for i in range(numCars):
-  carDataInitial.append(eval(f.readline()))
-solution = eval(f.readline())
-wallData = eval(f.readline())
-f.close()
+with open(filename, 'rt') as f:
+  siz = literal_eval(f.readline())
+  numCars = literal_eval(f.readline())
+  carDataInitial = []
+  for _ in range(numCars):
+    carDataInitial.append(literal_eval(f.readline()))
+  solution = literal_eval(f.readline())
+  wallData = literal_eval(f.readline())
 
 # calculate a couple things
 winCar = solution[-3]
@@ -91,7 +92,7 @@ def update(car):
 ## do a quick animation to start things off
 
 j = 0
-s = [0]*numCars     # this is the same as wrapped.s[] in solve.cpp except *down* and right are positive
+s = [0]*numCars     # same as puzzleState.s in solve.cpp, except *down* and right are positive
 [fig, ax, ann, rects] = setupFigure()
 
 ax.annotate('Solved!', (0.2, 0.2/(siz[0]+2)), xycoords = 'figure fraction')
@@ -103,7 +104,10 @@ def animateFunc(frame):
       return
     j += 1
     step = [solution[3*i], solution[3*i + 1], solution[3*i + 2]]   # [car, direction, count]
+
+    # ((x-1) % 2)*2 - 1  maps  1,2,3,4  to  -1,1,-1,1
     s[step[0]] += ( ((step[1]-1) % 2)*2 - 1)*step[2]
+
     update(step[0])
     return
 
@@ -113,7 +117,7 @@ plt.show()
 
 
 
-##  give buttons to make figure interactive
+## give buttons to make figure interactive
 
 j = 0
 s = [0]*numCars

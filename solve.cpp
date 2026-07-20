@@ -1,21 +1,21 @@
 /*
-  This code solves "Unblock Me" or "Sliding Cars" sort of puzzles.
+  This code solves puzzles similar to "Unblock Me" and "Sliding Cars".
   This code cannot handle oddly shaped cars.
 
   First, change the parameters at the top of this file.
 
   Then, compile and run this code via...
-    g++ -O3 solve.cpp
+    g++ -std=c++17 -O3 solve.cpp
     ./a.out
 
-  To animate the results (saved to output.txt), then run...
+  To animate the results saved in output.txt, run...
     ./animate.py
   Close the animation figure to enter interactive mode!
 
-  If on Windows, setup Mingw-w64 or Cygwin, then do...
-    g++ -O3 solve.cpp
+  On Windows, set up MinGW-w64 or Cygwin, then run...
+    g++ -std=c++17 -O3 solve.cpp
     .\a.exe
-    python3 animate.py
+    python animate.py
 
   (c) 2021 Bradley Knockel
 */
@@ -26,7 +26,12 @@
 #include <fstream>    // std::ofstream
 #include <chrono>     // for timing the code
 #include <vector>     // for variable-length (on heap) 1D arrays
+#include <array>
 
+// We want hash tables to greatly speed up uniqueConfigurations!
+//   In 2026, ChatGPT gave me this idea!
+#include <unordered_map>
+#include <functional>
 
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +39,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////
 
     /*
-        0 -> display first solution found
+        0 -> stop after finding the first solution
         1 -> keep searching for the optimal solution
     */
     const int searchForOptimal = 1;
@@ -48,11 +53,11 @@
 
 
     /*
-        Enter max number of moves allowed in search for a solution.
+        Enter the maximum number of moves allowed in the search.
         Change to something like 100 if searchForOptimal equals 0.
 
         You will probably never need to change this,
-          though setting this well speeds up the code!
+          although choosing an appropriate value can significantly reduce the search time.
         You *might* need to change this if...
          - the puzzle is very difficult, requiring a larger nMax
          - the puzzle is sparsely filled with cars, requiring a smaller nMax
@@ -64,9 +69,10 @@
         Insert level
 
         Use -1 for immovable walls, 0 for empty, and positive integers for cars.
-        Each car must have its own unique positive integer 1 to number of cars.
+        Number the cars consecutively from 1 through cars, using each number for exactly one car.
 
-        Note that this array will have 1 subtracted from each value before being fed into move()
+        Note: Before the search, 1 is subtracted from every cell so that each car's
+          internal label matches its zero-based index in carDataInitial[].
     */
 /*
     int lStart[] = {1,  1,  0,  2,  2,  2,
@@ -92,8 +98,9 @@
 
 
     /*
-        [row column car]
-        Keep in mind that first row or first column is 0
+        {row, column, car}
+        The specified edge cell must be occupied by the specified car to win.
+        Rows and columns use zero-based indexing.
         Note that this array will be modified before it is used
     */
     int winCondition[] = {2, 5, 2};
@@ -105,48 +112,61 @@
 
 
 
-/* define a struct in order to pass arrays by value to move() */
-struct wrapper{
-  int l[length];
-  int s[cars];
+/* define a struct to conceptually group different ways of representing the puzzle state */
+struct PuzzleState {
+  std::array<int, length> l;   // could do `int l[length]` instead since PuzzleState would allow it to be passed by value
+  std::array<int, cars> s;
 };
 
 
 
-/* make a few more things global for move() */
+/* Data shared by move(), the recursive search */
 
 int carDataInitial[cars][5];  // 5 columns: {index, row, column, vertical=1 (else 0), length}
 std::vector<int> wallData;    // indices of walls
 std::vector<int> sol;         // current best solution
-const int carsPlus1 = cars + 1;
 
-// A vector where each group of (cars + 1) elements is an old s[] with its corresponding n attached,
-//     where s[] is defined in move().
-// It only ever grows as more unique puzzle configurations are encountered.
-std::vector<int> uniqueConfigurations;
+// uniqueConfigurations maps each previously encountered s[] state to the
+//   smallest move count (n) at which that state has been reached.
+//   s[] is defined in move().
+// ChatGPT wrote this in 2026.
+
+struct StateHash {
+  std::size_t operator()(const std::array<int, cars>& state) const noexcept {
+    std::size_t hash = 0;
+    for (int position : state)
+      hash = hash * 31 + std::hash<int>{}(position);
+    return hash;
+  }
+};
+
+std::unordered_map<std::array<int, cars>, int, StateHash> uniqueConfigurations;
 
 
 
 
 
 /*
-  A macro to be used several times in move()
-  Moves car i (do=1 if both directions should be tried, else do=0)
+  The function tryMoves() will be used several times in move()
+  Moves car i (tryBoth=1 if both directions should be tried, else tryBoth=0)
 */
 
-#define tryy(do) ({\
-    if (carDataInitial[i][3]) {     /* vertical */   \
-        if ( (do || d==1) && carDataInitial[i][1]-wrapped.s[i]-1 >= 0 && wrapped.l[carDataInitial[i][0] - (wrapped.s[i]+1)*size[1]] == -1 )\
-            move(wrapped,p,n,i,1);  /* move up */    \
-        if ( (do || d==2) && carDataInitial[i][1]-wrapped.s[i]+carDataInitial[i][4] < size[0] && wrapped.l[carDataInitial[i][0] + (carDataInitial[i][4]-wrapped.s[i])*size[1]] == -1 )\
-            move(wrapped,p,n,i,2);  /* move down */  \
-    } else {\
-        if ( (do || d==3) && carDataInitial[i][2]+wrapped.s[i]-1 >= 0 && wrapped.l[carDataInitial[i][0] + wrapped.s[i] - 1] == -1 )\
-            move(wrapped,p,n,i,3);  /* move left */  \
-        if ( (do || d==4) && carDataInitial[i][2]+wrapped.s[i]+carDataInitial[i][4] < size[1] && wrapped.l[carDataInitial[i][0] + wrapped.s[i] + carDataInitial[i][4]] == -1 )\
-            move(wrapped,p,n,i,4);  /* move right */ \
-    }\
-})
+void move(PuzzleState puzzleState, std::vector<int> p, int n, int c, int d);
+
+inline void tryMoves(const PuzzleState& puzzleState, const std::vector<int>& p, int n, int i, int d, bool tryBoth) {
+
+  if (carDataInitial[i][3]) {  // vertical
+    if ((tryBoth || d == 1) && carDataInitial[i][1] - puzzleState.s[i] - 1 >= 0 && puzzleState.l[carDataInitial[i][0] - (puzzleState.s[i] + 1) * size[1]] == -1)
+      move(puzzleState, p, n, i, 1);  // move up
+    if ((tryBoth || d == 2) && carDataInitial[i][1] - puzzleState.s[i] + carDataInitial[i][4] < size[0] && puzzleState.l[carDataInitial[i][0] + (carDataInitial[i][4] - puzzleState.s[i]) * size[1]] == -1)
+      move(puzzleState, p, n, i, 2);  // move down
+  } else {  // horizontal
+    if ((tryBoth || d == 3) && carDataInitial[i][2] + puzzleState.s[i] - 1 >= 0 && puzzleState.l[carDataInitial[i][0] + puzzleState.s[i] - 1] == -1)
+      move(puzzleState, p, n, i, 3);  // move left
+    if ((tryBoth || d == 4) && carDataInitial[i][2] + puzzleState.s[i] + carDataInitial[i][4] < size[1] && puzzleState.l[carDataInitial[i][0] + puzzleState.s[i] + carDataInitial[i][4]] == -1)
+      move(puzzleState, p, n, i, 4);  // move right
+  }
+}
 
 
 
@@ -154,79 +174,63 @@ std::vector<int> uniqueConfigurations;
 /*
  move() is the recursive function that solves the puzzle
 
- wrapped.l[] is the level array
- wrapped.s[] is position array of all cars relative to variable carDataInitial[] (up or right is positive)
+ puzzleState.l[] is the level array
+ puzzleState.s[] is the position array of all cars relative to carDataInitial[]
+   (up and right are positive; down and left are negative)
 
  p[] is a vector where each group of 2 elements is {c, d}; will eventually be used to make sol[]
 
- n is current step
- c is which car is being moved (-1 = start)
- d is which direction the car is being moved
+ n is the current move count under the selected counting rule
+ c identifies the car being moved (-1 = start)
+ d identifies the car's movement direction
      1=up 2=down 3=left 4=right 0=start
 */
 
-void move(wrapper wrapped, std::vector<int> p, int n, int c, int d) {
+void move(PuzzleState puzzleState, std::vector<int> p, int n, int c, int d) {
 
-  // update wrapped
+  // update puzzleState
   if (d==1) {
-    wrapped.s[c]++;
-    wrapped.l[carDataInitial[c][0] - wrapped.s[c]*size[1]] = c;
-    wrapped.l[carDataInitial[c][0] + (carDataInitial[c][4] - wrapped.s[c])*size[1]] = -1;
+    puzzleState.s[c]++;
+    puzzleState.l[carDataInitial[c][0] - puzzleState.s[c]*size[1]] = c;
+    puzzleState.l[carDataInitial[c][0] + (carDataInitial[c][4] - puzzleState.s[c])*size[1]] = -1;
   } else if (d==2) {
-    wrapped.s[c]--;
-    wrapped.l[carDataInitial[c][0] + (carDataInitial[c][4] - wrapped.s[c] - 1)*size[1]] = c;
-    wrapped.l[carDataInitial[c][0] - (wrapped.s[c] + 1)*size[1]] = -1;
+    puzzleState.s[c]--;
+    puzzleState.l[carDataInitial[c][0] + (carDataInitial[c][4] - puzzleState.s[c] - 1)*size[1]] = c;
+    puzzleState.l[carDataInitial[c][0] - (puzzleState.s[c] + 1)*size[1]] = -1;
   } else if (d==3) {
-    wrapped.s[c]--;
-    wrapped.l[carDataInitial[c][0] + wrapped.s[c]] = c;
-    wrapped.l[carDataInitial[c][0] + carDataInitial[c][4] + wrapped.s[c]] = -1;
+    puzzleState.s[c]--;
+    puzzleState.l[carDataInitial[c][0] + puzzleState.s[c]] = c;
+    puzzleState.l[carDataInitial[c][0] + carDataInitial[c][4] + puzzleState.s[c]] = -1;
   } else if (d==4) {
-    wrapped.s[c]++;
-    wrapped.l[carDataInitial[c][0] + carDataInitial[c][4] + wrapped.s[c] - 1] = c;
-    wrapped.l[carDataInitial[c][0] + wrapped.s[c] - 1] = -1;
+    puzzleState.s[c]++;
+    puzzleState.l[carDataInitial[c][0] + carDataInitial[c][4] + puzzleState.s[c] - 1] = c;
+    puzzleState.l[carDataInitial[c][0] + puzzleState.s[c] - 1] = -1;
   }
 
-  // going down roads already traveled is a waste of time
+  // Avoid re-exploring configurations reached with an equal or lower move count.
   int go = 1;   // go=0 allows for certain roads to still be followed as opposed to using the return statement
   if (d) {
 
-    // search for another time the same s[] has occurred
-    int ind = 0;
-    for (int j=0; j < uniqueConfigurations.size()/carsPlus1; j++) {
-        int stop = 0;
-        for (int k=0; k < cars; k++) {
-           if (wrapped.s[k] != uniqueConfigurations[j*carsPlus1 + k]) {
-              stop = 1;
-              break;
-           }
-        }
-        if (stop) continue;
-        ind = j*carsPlus1 + cars;
-        break;
-    }
+    // ChatGPT updated the following in 2026 to use a hash table.
+    // A newly encountered state is inserted. If the same state is later reached
+    // with a smaller n, its stored move count is updated.
 
-    if (ind) {
-      int N = uniqueConfigurations[ind];
+    auto [it, inserted] = uniqueConfigurations.emplace(puzzleState.s, n);
 
-      if (n>N)
+    if (!inserted) {  // puzzleState.s was encountered previously
+      int N = it->second;
+
+      if (n > N)
+        return;
+
+      if (n == N) {
+        if (smartCount)
+          go = 0;
+        else
           return;
-      if (n==N) {
-          if (smartCount)
-              go = 0;
-          else
-              return;
       }
 
-      // replace the entry in uniqueConfigurations[]
-      uniqueConfigurations[ind] = n;
-
-    } else {
-
-      // make uniqueConfigurations[] longer
-      uniqueConfigurations.reserve(uniqueConfigurations.size() + carsPlus1);
-      for (int j=0; j<cars; j++)
-          uniqueConfigurations.push_back(wrapped.s[j]);
-      uniqueConfigurations.push_back(n);
+      it->second = n;
     }
 
   }
@@ -234,7 +238,7 @@ void move(wrapper wrapped, std::vector<int> p, int n, int c, int d) {
   // check if you've won!
   p.push_back(c);
   p.push_back(d);
-  if (wrapped.l[winCondition[0]] == winCondition[1]) {
+  if (puzzleState.l[winCondition[0]] == winCondition[1]) {
 
     // sol[] becomes all but the first two elements of p[]
     sol.clear();
@@ -252,7 +256,7 @@ void move(wrapper wrapped, std::vector<int> p, int n, int c, int d) {
   // try to keep moving same car in the same direction
   int i = c;
   if (smartCount && c >= 0) {
-      tryy(0);
+      tryMoves(puzzleState, p, n, i, d, false);
   }
   if (!go) return;
 
@@ -262,13 +266,13 @@ void move(wrapper wrapped, std::vector<int> p, int n, int c, int d) {
 
   // try to keep moving same car in the same direction
   if (c >= 0 && !smartCount) {
-      tryy(0);
+      tryMoves(puzzleState, p, n, i, d, false);
   }
 
   // move other cars in all directions
   for (i = 0; i<cars; i++) {
     if (i!=c) {
-        tryy(1);
+        tryMoves(puzzleState, p, n, i, d, true);  // notice that true is now passed
     }
   }
 
@@ -289,6 +293,7 @@ int main() {
 
   /**************
       parse level info
+      I don't try to catch all invalid parameters!
   **************/
 
   if (size[0]*size[1] != length || length != sizeof(lStart)/sizeof(lStart[0])) {
@@ -302,7 +307,7 @@ int main() {
     }
   }
 
-  // the following are needed to check that lStart[] is nice
+  // track parsed cells and car labels while validating lStart[]
   std::vector<int> usedIndices;
   usedIndices.reserve(length);
   std::vector<int> usedCars;
@@ -336,34 +341,34 @@ int main() {
 
       if (i+size[1]<length && lStart[i+size[1]]==lStart[i]) {  // vertical
 
-                // get lengt and update usedIndices[]
-                int lengt = 2;
+                // get carLength and update usedIndices[]
+                int carLength = 2;
                 usedIndices.push_back(i+size[1]);
                 int j = i + 2*size[1];
                 while (j < length && lStart[j] == lStart[i]) {
                   usedIndices.push_back(j);
                   j += size[1];
-                  lengt++;
+                  carLength++;
                 }
 
                 carDataInitial[lStart[i]-1][3] = 1;
-                carDataInitial[lStart[i]-1][4] = lengt;
+                carDataInitial[lStart[i]-1][4] = carLength;
 
       } else if (i+1<length && lStart[i+1]==lStart[i]) {   // horizontal
 
-                // get lengt and update usedIndices[]
-                int leng = (i / size[1] + 1) * size[1];  // first index of next row
-                int lengt = 2;
+                // get carLength and update usedIndices[]
+                int nextRowIndex = (i / size[1] + 1) * size[1];  // first index of next row
+                int carLength = 2;
                 usedIndices.push_back(i+1);
                 int j = i+2;
-                while (j < leng && lStart[j] == lStart[i]) {
+                while (j < nextRowIndex && lStart[j] == lStart[i]) {
                   usedIndices.push_back(j);
                   j++;
-                  lengt++;
+                  carLength++;
                 }
 
                 carDataInitial[lStart[i]-1][3] = 0;
-                carDataInitial[lStart[i]-1][4] = lengt;
+                carDataInitial[lStart[i]-1][4] = carLength;
 
       } else {
                 std::cout << "Error: cars have invalid shape!" << std::endl;
@@ -389,13 +394,18 @@ int main() {
     }
   }
 
+  // reject a level that already satisfies the win condition
+  if (lStart[winCondition[0] * size[1] + winCondition[1]] == winCondition[2]) {
+    std::cout << "Error: the level already satisfies winCondition[]" << std::endl;
+    return -1;
+  }
 
 
 
 
   /**************
       Do it!
-      And return the number of different configurations explored
+      And print the number of different configurations explored
   **************/
 
   if (searchForOptimal) {
@@ -413,21 +423,24 @@ int main() {
        << std::flush;
   }
 
-  // make some crap for move(): temp[] and wrapped
+  // make some crap for move(): temp[] and puzzleState
   std::vector<int> temp;
-  wrapper wrapped;
+  PuzzleState puzzleState;
   for (int i=0; i<length; i++)
-    wrapped.l[i] = lStart[i] - 1;  // subtract 1 so that car label matches index of carDataInitial[]
+    puzzleState.l[i] = lStart[i] - 1;  // subtract 1 so that car label matches index of carDataInitial[]
   for (int i=0; i<cars; i++)
-    wrapped.s[i] = 0;
+    puzzleState.s[i] = 0;
 
   // put winCondition[] in a better format for move()
   winCondition[0] = winCondition[0] * size[1] + winCondition[1];
   winCondition[1] = winCondition[2] - 1;
 
+  // try to speed things up
+  uniqueConfigurations.reserve(10000);
+
   // run and time move()
   std::chrono::high_resolution_clock::time_point timeStart = std::chrono::high_resolution_clock::now();
-  move(wrapped, temp, 0, -1, 0);
+  move(puzzleState, temp, 0, -1, 0);
   std::chrono::high_resolution_clock::time_point timeEnd = std::chrono::high_resolution_clock::now();
 
   // print results contained in sol[]
@@ -441,7 +454,7 @@ int main() {
       << std::chrono::duration_cast<std::chrono::milliseconds>(timeEnd - timeStart).count()/1000.0
       << " s" << std::endl;
 
-  std::cout << "Number of unique configurations explored: " << uniqueConfigurations.size() / carsPlus1 << std::endl;
+  std::cout << "Number of unique configurations explored: " << uniqueConfigurations.size() << std::endl;
 
   if (!solRows) {
     std::cout << "No solution found. Perhaps you should make nMax larger." << std::endl;
@@ -498,8 +511,11 @@ int main() {
 
   // output to file
 
-  std::ofstream myfile;
-  myfile.open("output.txt");
+  std::ofstream myfile("output.txt");
+  if (!myfile) {
+    std::cout << "Error: could not open output.txt for writing" << std::endl;
+    return -1;
+  }
 
   // size[]
   myfile << "[" << size[0] << "," << size[1] << "]\n";
